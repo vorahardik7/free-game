@@ -10,6 +10,7 @@ export interface VehicleInput {
   steer: number;
   ascend: number;
   descend: number;
+  boost: boolean;
 }
 
 export interface VehicleVisuals {
@@ -228,7 +229,10 @@ function updateGroundVehicle(
   hash: SpatialHash,
 ): VehicleUpdateResult {
   const conf = carConfig.cab;
-  state.speed += input.throttle * conf.accel * dt;
+  const boostMul = input.boost ? 1.7 : 1;
+  const maxForward = conf.maxForward * boostMul;
+  const accel = conf.accel * (input.boost ? 1.45 : 1);
+  state.speed += input.throttle * accel * dt;
   if (Math.abs(input.throttle) < 0.01) {
     state.speed *= conf.drag;
   }
@@ -236,7 +240,7 @@ function updateGroundVehicle(
     state.speed = 0;
   }
 
-  state.speed = clamp(state.speed, -conf.maxReverse, conf.maxForward);
+  state.speed = clamp(state.speed, -conf.maxReverse, maxForward);
   const steeringInfluence = Math.abs(state.speed) < 1 ? 0 : clamp(Math.abs(state.speed) / conf.maxForward, 0.25, 1);
   state.heading += input.steer * conf.turnRate * dt * steeringInfluence * (state.speed >= 0 ? 1 : -1);
 
@@ -271,11 +275,12 @@ function updatePlane(
   const nowOnRunway = onRunway(state.position, runwayBounds);
 
   if (state.mode !== "airborne") {
-    state.speed += input.throttle * planeConfig.accel * dt;
+    const groundBoost = input.boost ? 1.28 : 1;
+    state.speed += input.throttle * planeConfig.accel * groundBoost * dt;
     if (Math.abs(input.throttle) < 0.01) {
       state.speed *= planeConfig.dragGround;
     }
-    state.speed = clamp(state.speed, -planeConfig.groundReverse, planeConfig.groundMaxForward);
+    state.speed = clamp(state.speed, -planeConfig.groundReverse, planeConfig.groundMaxForward * (input.boost ? 1.22 : 1));
 
     const speedRatio = Math.abs(state.speed) / planeConfig.groundMaxForward;
     const steerInfluence = speedRatio < 0.04 ? 0 : clamp(speedRatio, 0.18, 1);
@@ -324,9 +329,9 @@ function updatePlane(
       state.speed = Math.max(state.speed, planeConfig.minAirSpeed);
     }
   } else {
-    state.speed += input.throttle * planeConfig.accel * dt;
+    state.speed += input.throttle * planeConfig.accel * (input.boost ? 1.2 : 1) * dt;
     state.speed *= planeConfig.dragAir;
-    state.speed = clamp(state.speed, planeConfig.minAirSpeed, planeConfig.maxAirSpeed);
+    state.speed = clamp(state.speed, planeConfig.minAirSpeed, planeConfig.maxAirSpeed * (input.boost ? 1.22 : 1));
 
     state.heading += input.steer * planeConfig.turnAir * dt;
     const lift = clamp((state.speed - 14) * 0.22, 0.2, 5.4);

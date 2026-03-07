@@ -24,4 +24,5 @@ export const INITIAL_HUD_STATE: HudSnapshot = {
   dropoffX: 0,
   dropoffZ: 0,
   heading: 0,
+  minimapDataUrl: "",
 };

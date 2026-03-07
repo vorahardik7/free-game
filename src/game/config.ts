@@ -3,7 +3,7 @@ import type { BuildingArchetype, WorldConfig } from "./types";
 export const WORLD_CONFIG: WorldConfig = {
   tileSize: 24,
   gridHalf: 9,
-  pedestrianCap: 220,
+  pedestrianCap: 450,
   treeCount: 340,
   runwayTakeoffSpeed: 16,
   runwayRollDistance: 16,

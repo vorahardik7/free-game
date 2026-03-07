@@ -5,7 +5,7 @@ import { createCameraController } from "./camera";
 import { dist2d } from "./math";
 import { createPedestrianSystem } from "./pedestrians";
 import type { HudSnapshot, VehicleId } from "./types";
-import { createWorld } from "./world";
+import { createWorld, generateMinimapDataUrl } from "./world";
 import {
   applyVehicleVisuals,
   createInitialVehicleState,
@@ -47,27 +47,43 @@ const vehicleLabel: Record<VehicleId, string> = {
   plane: "Sky Hopper",
 };
 
-function createBeacon(color: string): THREE.Group {
+function createBeacon(color: string, label: string): THREE.Group {
   const g = new THREE.Group();
   const pillar = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.7, 1.7, 15, 18, 1, true),
+    new THREE.CylinderGeometry(1.7, 1.7, 28, 18, 1, true),
     new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.22, emissive: color, emissiveIntensity: 0.35, side: THREE.DoubleSide }),
   );
-  pillar.position.y = 7.5;
+  pillar.position.y = 14;
 
   const marker = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(2.3, 0),
+    new THREE.IcosahedronGeometry(3.0, 0),
     new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.65, roughness: 0.3, metalness: 0.2 }),
   );
-  marker.position.y = 15.7;
+  marker.position.y = 29;
 
-  g.add(pillar, marker);
+  // Floating text label
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = color;
+  ctx.font = "bold 36px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, 128, 32);
+  const texture = new THREE.CanvasTexture(canvas);
+  const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.scale.set(8, 2, 1);
+  sprite.position.y = 34;
+
+  g.add(pillar, marker, sprite);
   return g;
 }
 
 function createGroundRing(color: string): THREE.Mesh {
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(2.6, 3.4, 36),
+    new THREE.RingGeometry(4.0, 5.5, 36),
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, side: THREE.DoubleSide }),
   );
   ring.rotation.x = -Math.PI / 2;
@@ -78,67 +94,80 @@ function createGroundRing(color: string): THREE.Mesh {
 function createPassengerVisual(): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.23, 0.72, 3, 6),
+    new THREE.CapsuleGeometry(0.35, 1.08, 3, 6),
     new THREE.MeshStandardMaterial({ color: "#3b82f6", roughness: 0.7 }),
   );
-  body.position.y = 0.85;
+  body.position.y = 1.28;
 
   const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.17, 10, 10),
+    new THREE.SphereGeometry(0.26, 10, 10),
     new THREE.MeshStandardMaterial({ color: "#f9d4bb", roughness: 0.85 }),
   );
-  head.position.y = 1.63;
+  head.position.y = 2.45;
 
   const bag = new THREE.Mesh(
-    new THREE.BoxGeometry(0.24, 0.3, 0.14),
+    new THREE.BoxGeometry(0.36, 0.45, 0.21),
     new THREE.MeshStandardMaterial({ color: "#1f2937", roughness: 0.8 }),
   );
-  bag.position.set(0.21, 0.95, -0.06);
+  bag.position.set(0.32, 1.43, -0.09);
 
   g.add(body, head, bag);
   return g;
 }
 
-function pickAnchor(anchors: THREE.Vector3[], avoid?: THREE.Vector3): THREE.Vector3 {
-  if (anchors.length === 0) {
-    return new THREE.Vector3(0, 1, 0);
-  }
+function createNavArrow(): THREE.Group {
+  const g = new THREE.Group();
+  const head = new THREE.Mesh(
+    new THREE.ConeGeometry(0.5, 1.2, 8),
+    new THREE.MeshStandardMaterial({ color: "#22d3ee", emissive: "#22d3ee", emissiveIntensity: 0.5, depthTest: false }),
+  );
+  head.rotation.x = -Math.PI / 2;
+  head.position.z = 0.8;
+  head.renderOrder = 998;
 
-  let selected = anchors[Math.floor(Math.random() * anchors.length)]?.clone() ?? new THREE.Vector3(0, 1, 0);
-  if (!avoid) {
-    return selected;
-  }
+  const shaft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.15, 0.15, 1.2, 6),
+    new THREE.MeshStandardMaterial({ color: "#22d3ee", emissive: "#22d3ee", emissiveIntensity: 0.4, depthTest: false }),
+  );
+  shaft.rotation.x = Math.PI / 2;
+  shaft.position.z = -0.2;
+  shaft.renderOrder = 998;
 
-  let guard = 0;
-  while (dist2d(selected, avoid) < 50 && guard < 30) {
-    selected = anchors[Math.floor(Math.random() * anchors.length)]?.clone() ?? selected;
-    guard += 1;
-  }
-
-  return selected;
+  g.add(head, shaft);
+  return g;
 }
 
-function pickAnchorFar(anchors: THREE.Vector3[], avoid: THREE.Vector3, minDistance: number): THREE.Vector3 {
+function pickAnchorInRange(
+  anchors: THREE.Vector3[],
+  origin: THREE.Vector3,
+  minDistance: number,
+  maxDistance: number,
+): THREE.Vector3 {
   if (anchors.length === 0) {
     return new THREE.Vector3(0, 1, 0);
   }
 
-  let best = anchors[0]?.clone() ?? new THREE.Vector3(0, 1, 0);
-  let bestDist = dist2d(best, avoid);
+  const inRange = anchors.filter((anchor) => {
+    const d = dist2d(anchor, origin);
+    return d >= minDistance && d <= maxDistance;
+  });
 
+  if (inRange.length > 0) {
+    return inRange[Math.floor(Math.random() * inRange.length)]!.clone();
+  }
+
+  // Fallback: pick the closest anchor to the middle of desired range.
+  const targetDistance = (minDistance + maxDistance) * 0.5;
+  let best = anchors[0]!.clone();
+  let bestScore = Math.abs(dist2d(best, origin) - targetDistance);
   for (const anchor of anchors) {
-    const d = dist2d(anchor, avoid);
-    if (d > bestDist) {
+    const score = Math.abs(dist2d(anchor, origin) - targetDistance);
+    if (score < bestScore) {
       best = anchor.clone();
-      bestDist = d;
+      bestScore = score;
     }
   }
-
-  if (bestDist >= minDistance) {
-    return best;
-  }
-
-  return pickAnchor(anchors, avoid);
+  return best;
 }
 
 export class GameRuntime {
@@ -217,6 +246,7 @@ export class GameRuntime {
     scene.add(cityGlow);
 
     const world = createWorld(scene, this.debug);
+    const minimapDataUrl = generateMinimapDataUrl(world.roadTiles);
     const hash = new SpatialHash(WORLD_CONFIG.tileSize);
     hash.bulkInsert(world.colliders);
 
@@ -225,8 +255,8 @@ export class GameRuntime {
 
     const pedestrianSystem = createPedestrianSystem(scene, world.sidewalkNodes, WORLD_CONFIG.pedestrianCap);
 
-    const pickupBeacon = createBeacon("#2dd4bf");
-    const dropoffBeacon = createBeacon("#fb7185");
+    const pickupBeacon = createBeacon("#2dd4bf", "PICKUP");
+    const dropoffBeacon = createBeacon("#fb7185", "DROPOFF");
     const pickupRing = createGroundRing("#2dd4bf");
     const dropoffRing = createGroundRing("#fb7185");
     scene.add(pickupBeacon, dropoffBeacon);
@@ -236,12 +266,15 @@ export class GameRuntime {
     waitingPassenger.visible = true;
     scene.add(waitingPassenger);
 
+    const navArrow = createNavArrow();
+    scene.add(navArrow);
+
     const ride: RideState = {
       hasPassenger: false,
       isBoarding: false,
       boardingTimer: 0,
-      pickup: pickAnchor(world.pickupAnchors),
-      dropoff: pickAnchor(world.pickupAnchors),
+      pickup: pickAnchorInRange(world.pickupAnchors, vehicle.position, 40, 100),
+      dropoff: pickAnchorInRange(world.pickupAnchors, vehicle.position, 140, 300),
       comfort: 1,
       money: 0,
       rating: 5,
@@ -300,7 +333,7 @@ export class GameRuntime {
     const finalizeBoarding = (): void => {
       ride.hasPassenger = true;
       ride.isBoarding = false;
-      ride.dropoff = pickAnchorFar(world.pickupAnchors, ride.pickup, 90);
+      ride.dropoff = pickAnchorInRange(world.pickupAnchors, ride.pickup, 140, 300);
       ride.rideStartMs = performance.now();
       ride.rideDistance = dist2d(ride.pickup, ride.dropoff);
       ride.comfort = 1;
@@ -323,7 +356,7 @@ export class GameRuntime {
       const rideRating = Math.max(3.4, Math.min(5, 3.5 + ride.comfort * 1.5));
       ride.rating = (ride.rating * (ride.rides - 1) + rideRating) / ride.rides;
       ride.hasPassenger = false;
-      ride.pickup = pickAnchor(world.pickupAnchors, ride.dropoff);
+      ride.pickup = pickAnchorInRange(world.pickupAnchors, ride.dropoff, 40, 100);
       ride.message = `Ride complete +$${net}. Find next pickup.`;
       ride.toast = `Ride Complete +$${net}`;
       ride.toastTimer = 1.6;
@@ -344,6 +377,7 @@ export class GameRuntime {
       const steer = (this.keys.has("a") || this.keys.has("arrowleft") ? 1 : 0) + (this.keys.has("d") || this.keys.has("arrowright") ? -1 : 0);
       const ascend = this.keys.has("q") ? 1 : 0;
       const descend = this.keys.has("e") ? 1 : 0;
+      const boost = this.keys.has("shift");
 
       const vehicleResult = updateVehiclePhysics(
         vehicle,
@@ -352,6 +386,7 @@ export class GameRuntime {
           steer,
           ascend,
           descend,
+          boost,
         },
         dt,
         hash,
@@ -430,6 +465,31 @@ export class GameRuntime {
         ride.toastTimer = Math.max(0, ride.toastTimer - dt);
       }
 
+      // Navigation arrow: point toward active target
+      const navForward = getVehicleForward(vehicle);
+      navArrow.position.set(
+        vehicle.position.x + navForward.x * 6,
+        (vehicle.id === "plane" && vehicle.mode === "airborne" ? vehicle.position.y : 0) + 3.5 + Math.sin(now * 2.5) * 0.3,
+        vehicle.position.z + navForward.z * 6,
+      );
+      const navDx = activeTarget.x - navArrow.position.x;
+      const navDz = activeTarget.z - navArrow.position.z;
+      navArrow.rotation.y = Math.atan2(navDx, navDz);
+      // Color shift: cyan when far, green when close
+      const navHeadMat = (navArrow.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      const navShaftMat = (navArrow.children[1] as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      if (proximity < 20) {
+        navHeadMat.color.set("#10b981");
+        navHeadMat.emissive.set("#10b981");
+        navShaftMat.color.set("#10b981");
+        navShaftMat.emissive.set("#10b981");
+      } else {
+        navHeadMat.color.set("#22d3ee");
+        navHeadMat.emissive.set("#22d3ee");
+        navShaftMat.color.set("#22d3ee");
+        navShaftMat.emissive.set("#22d3ee");
+      }
+
       applyVehicleVisuals(vehicle, visuals, now, steer);
       pedestrianSystem.update(dt, vehicle.position, forward, Math.abs(vehicle.speed));
 
@@ -474,6 +534,7 @@ export class GameRuntime {
           dropoffX: ride.dropoff.x,
           dropoffZ: ride.dropoff.z,
           heading: vehicle.heading,
+          minimapDataUrl,
         });
       }
 

@@ -5,18 +5,6 @@ import { INITIAL_HUD_STATE } from "@/game/hud-state";
 import { GameRuntime } from "@/game/runtime";
 import type { HudSnapshot } from "@/game/types";
 
-const VEHICLE_NAME: Record<HudSnapshot["vehicle"], string> = {
-  cab: "City Cab",
-  plane: "Sky Hopper",
-};
-
-const MODE_NAME: Record<HudSnapshot["mode"], string> = {
-  ground: "Ground",
-  "takeoff-roll": "Takeoff Roll",
-  "landing-roll": "Landing Roll",
-  airborne: "Airborne",
-};
-
 function rotate(dx: number, dz: number, angle: number): { x: number; z: number } {
   const c = Math.cos(angle);
   const s = Math.sin(angle);
@@ -37,6 +25,7 @@ export default function Home() {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const runtimeRef = useRef<GameRuntime | null>(null);
   const [hud, setHud] = useState<HudSnapshot>(INITIAL_HUD_STATE);
+  const [gameStarted, setGameStarted] = useState(false);
 
   const debugEnabled = useMemo(() => {
     if (typeof window === "undefined") {
@@ -46,6 +35,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!gameStarted) return;
     const mount = mountRef.current;
     if (!mount) {
       return;
@@ -64,72 +54,126 @@ export default function Home() {
       runtime.stop();
       runtimeRef.current = null;
     };
-  }, [debugEnabled]);
+  }, [debugEnabled, gameStarted]);
 
   const collisionClass = hud.collisionPulse > 0.15 ? "is-colliding" : "";
   const serviceLabel = hud.serviceState === "boarding" ? "Boarding" : hud.serviceState === "in-ride" ? "Fare Running" : "Searching";
-  const isPlane = hud.vehicle === "plane";
   const targetX = hud.hasPassenger ? hud.dropoffX : hud.pickupX;
   const targetZ = hud.hasPassenger ? hud.dropoffZ : hud.pickupZ;
   const worldDx = targetX - hud.playerX;
   const worldDz = targetZ - hud.playerZ;
-  const local = rotate(worldDx, worldDz, -hud.heading);
-  const mapRange = 140;
-  const mapDist = Math.hypot(local.x, local.z);
-  const clampedScale = mapDist > mapRange ? mapRange / mapDist : 1;
-  const plotX = 50 + (local.x * clampedScale / mapRange) * 42;
-  const plotY = 50 - (local.z * clampedScale / mapRange) * 42;
-  const targetFar = mapDist > mapRange;
-  const arrowAngle = Math.atan2(plotX - 50, 50 - plotY) * (180 / Math.PI);
   const distanceMeters = Math.round(hud.targetDistance * 3.4);
   const dirLabel = cardinalFromVector(worldDx, worldDz);
+
+  // Minimap calculations - world-space positions mapped to minimap
+  const gridHalf = 9;
+  const tileSize = 24;
+  const worldSpan = (gridHalf * 2 + 1) * tileSize;
+  const worldMin = -gridHalf * tileSize - tileSize / 2;
+  const toMapPct = (worldVal: number): number => ((worldVal - worldMin) / worldSpan) * 100;
+  const playerMapX = toMapPct(hud.playerX);
+  const playerMapY = toMapPct(hud.playerZ);
+  const targetMapX = toMapPct(targetX);
+  const targetMapY = toMapPct(targetZ);
+
+  // Compass arrow: angle from player heading to target
+  const local = rotate(worldDx, worldDz, -hud.heading);
+  const compassAngle = Math.atan2(local.x, local.z) * (180 / Math.PI);
+
+  if (!gameStarted) {
+    return (
+      <div className="start-screen">
+        <div className="start-content">
+          <h1 className="start-title">Golden Hour Rides</h1>
+          <p className="start-subtitle">Coastal Cab + Air Service</p>
+
+          <div className="controls-grid">
+            <div className="control-card">
+              <h3>City Cab</h3>
+              <div className="control-row"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <span>Drive</span></div>
+              <div className="control-row"><kbd>Shift</kbd> <span>Boost</span></div>
+            </div>
+            <div className="control-card">
+              <h3>Sky Hopper</h3>
+              <div className="control-row"><kbd>W</kbd><kbd>S</kbd> <span>Throttle</span></div>
+              <div className="control-row"><kbd>A</kbd><kbd>D</kbd> <span>Turn</span></div>
+              <div className="control-row"><kbd>Q</kbd> <span>Climb</span></div>
+              <div className="control-row"><kbd>E</kbd> <span>Descend</span></div>
+            </div>
+            <div className="control-card">
+              <h3>Switch Vehicle</h3>
+              <div className="control-row"><kbd>1</kbd> <span>City Cab</span></div>
+              <div className="control-row"><kbd>2</kbd> <span>Sky Hopper</span></div>
+            </div>
+          </div>
+
+          <p className="start-goal">Pick up passengers and deliver them to earn money</p>
+
+          <button className="start-button" onClick={() => setGameStarted(true)}>
+            Start Game
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`game-shell ${collisionClass}`}>
       <div className="canvas-host" ref={mountRef} />
 
       <header className="hud-top-shell">
-        <div className="brand-block">
-          <p>Golden Hour Rides</p>
-          <small>Coastal Cab + Air Service</small>
-          <strong>{serviceLabel}</strong>
-        </div>
-
-        <div className="status-strip">
-          <span>{VEHICLE_NAME[hud.vehicle]}</span>
-          <span>{MODE_NAME[hud.mode]}</span>
-          <span>{hud.speed} mph</span>
-          <span>${hud.money}</span>
-          <span>{hud.rating.toFixed(2)} rating</span>
-          <span>{distanceMeters}m to target</span>
+        <div className="stat-cards">
+          <div className="stat-card">
+            <span className="stat-value">${hud.money}</span>
+            <span className="stat-label">Money</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-value">{hud.speed}</span>
+            <span className="stat-label">mph</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-value">{distanceMeters}m</span>
+            <span className="stat-label">to {hud.objective}</span>
+          </div>
         </div>
 
         <div className="mini-map">
-          <div className="mini-map-inner radar-map">
-            <div className="radar-grid" />
+          <div className="mini-map-inner" style={hud.minimapDataUrl ? { backgroundImage: `url(${hud.minimapDataUrl})`, backgroundSize: "cover" } : undefined}>
             <svg className="map-route" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <line x1={50} y1={50} x2={plotX} y2={plotY} />
+              <line x1={playerMapX} y1={playerMapY} x2={targetMapX} y2={targetMapY} />
             </svg>
-            <i className="marker player center" />
+            <i className="marker player" style={{ left: `${playerMapX}%`, top: `${playerMapY}%` }} />
             <i
               className={`marker target ${hud.hasPassenger ? "dropoff" : "pickup"}`}
-              style={{ left: `${plotX}%`, top: `${plotY}%` }}
+              style={{ left: `${targetMapX}%`, top: `${targetMapY}%` }}
             />
-            {targetFar ? (
-              <i className="target-arrow" style={{ transform: `translate(-50%, -50%) rotate(${arrowAngle}deg) translateY(-44px)` }} />
-            ) : null}
           </div>
-          <p className="mini-map-label">Head {dirLabel} • {distanceMeters}m</p>
         </div>
       </header>
 
-      {isPlane ? (
-        <div className="vehicle-controls-top">
-          <span className="title">Plane Controls</span>
-          <span><kbd>W/S</kbd> Throttle</span>
-          <span><kbd>A/D</kbd> Turn</span>
-          <span><kbd>Q</kbd> Lift/Climb</span>
-          <span><kbd>E</kbd> Descend</span>
+      {/* Compass Arrow */}
+      <div className="compass-widget">
+        <div className="compass-ring">
+          <svg viewBox="0 0 80 80" className="compass-arrow-svg">
+            <polygon
+              points="40,10 32,50 40,44 48,50"
+              fill={hud.hasPassenger ? "#fb7185" : "#2dd4bf"}
+              stroke="rgba(255,255,255,0.3)"
+              strokeWidth="1"
+              transform={`rotate(${compassAngle}, 40, 40)`}
+            />
+          </svg>
+        </div>
+        <div className="compass-info">
+          <span className="compass-dist">{distanceMeters}m</span>
+          <span className="compass-dir">{dirLabel}</span>
+          <span className={`compass-state ${hud.hasPassenger ? "dropoff" : "pickup"}`}>{hud.objective}</span>
+        </div>
+      </div>
+
+      {hud.serviceState !== "searching" ? (
+        <div className="service-pill">
+          <span className="service-badge">{serviceLabel}</span>
         </div>
       ) : null}
 
@@ -140,14 +184,6 @@ export default function Home() {
           <p className="label">Objective</p>
           <h2>{hud.objective}</h2>
           <p className="meta">{hud.message}</p>
-        </div>
-
-        <div className="dock-item controls">
-          <p className="label">Controls</p>
-          <p className="meta">WASD/Arrows move</p>
-          <p className="meta">1 cab, 2 plane</p>
-          <p className="meta">Q takeoff/climb, E descend</p>
-          <p className="meta">Stop at pickup to board passenger</p>
         </div>
       </section>
 

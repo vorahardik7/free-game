@@ -137,18 +137,18 @@ export function createPedestrianSystem(
 ): PedestrianSystem {
   const rng = seededRng(44091);
 
-  const bodyGeometry = new THREE.CapsuleGeometry(0.23, 0.72, 3, 6);
-  const headGeometry = new THREE.SphereGeometry(0.17, 8, 8);
-  const hatGeometry = new THREE.CylinderGeometry(0.16, 0.18, 0.12, 10);
-  const bagGeometry = new THREE.BoxGeometry(0.16, 0.24, 0.11);
-  const jacketGeometry = new THREE.CapsuleGeometry(0.25, 0.34, 3, 7);
-  const hairGeometry = new THREE.SphereGeometry(0.13, 8, 8);
+  const bodyGeometry = new THREE.CapsuleGeometry(0.32, 0.95, 4, 8);
+  const headGeometry = new THREE.SphereGeometry(0.24, 10, 10);
+  const hatGeometry = new THREE.CylinderGeometry(0.22, 0.25, 0.16, 10);
+  const bagGeometry = new THREE.BoxGeometry(0.22, 0.32, 0.15);
+  const jacketGeometry = new THREE.CapsuleGeometry(0.35, 0.44, 4, 8);
+  const hairGeometry = new THREE.SphereGeometry(0.18, 8, 8);
 
-  const bodyMaterial = new THREE.MeshStandardMaterial({ color: "#e2e8f0", roughness: 0.68, metalness: 0.1, vertexColors: true });
-  const headMaterial = new THREE.MeshStandardMaterial({ color: "#f9d4bb", roughness: 0.9, metalness: 0.03, vertexColors: true });
-  const hatMaterial = new THREE.MeshStandardMaterial({ color: "#111827", roughness: 0.7, metalness: 0.1, vertexColors: true });
-  const bagMaterial = new THREE.MeshStandardMaterial({ color: "#1f2937", roughness: 0.8, metalness: 0.1, vertexColors: true });
-  const jacketMaterial = new THREE.MeshStandardMaterial({ color: "#334155", roughness: 0.7, metalness: 0.1, vertexColors: true });
+  const bodyMaterial = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.68, metalness: 0.1 });
+  const headMaterial = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9, metalness: 0.03 });
+  const hatMaterial = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.7, metalness: 0.1 });
+  const bagMaterial = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.8, metalness: 0.1 });
+  const jacketMaterial = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.7, metalness: 0.1 });
   const hairMaterial = new THREE.MeshStandardMaterial({ color: "#111827", roughness: 0.9, metalness: 0.03 });
 
   const bodyMesh = new THREE.InstancedMesh(bodyGeometry, bodyMaterial, cap);
@@ -227,16 +227,16 @@ export function createPedestrianSystem(
         const sway = Math.sin(agent.bobPhase * 0.6) * 0.05;
 
         matrix.makeScale(agent.shoulderScale, fade * agent.bodyScale, agent.shoulderScale);
-        matrix.setPosition(agent.position.x, 0.89 + bob, agent.position.z);
+        matrix.setPosition(agent.position.x, 1.1 + bob, agent.position.z);
         bodyMesh.setMatrixAt(agent.id, matrix);
 
         matrix.makeScale(agent.headScale, fade * agent.headScale, agent.headScale);
-        matrix.setPosition(agent.position.x, 1.66 + bob, agent.position.z);
+        matrix.setPosition(agent.position.x, 2.0 + bob, agent.position.z);
         headMesh.setMatrixAt(agent.id, matrix);
 
         if (agent.hasHat) {
           matrix.makeScale(agent.headScale, fade * agent.headScale, agent.headScale);
-          matrix.setPosition(agent.position.x, 1.84 + bob, agent.position.z);
+          matrix.setPosition(agent.position.x, 2.26 + bob, agent.position.z);
           hatMesh.setMatrixAt(agent.id, matrix);
         } else {
           setHidden(matrix);
@@ -245,7 +245,7 @@ export function createPedestrianSystem(
 
         if (agent.hasBag) {
           matrix.makeScale(1, fade, 1);
-          matrix.setPosition(agent.position.x + 0.22 + sway, 1.04 + bob, agent.position.z - 0.05);
+          matrix.setPosition(agent.position.x + 0.3 + sway, 1.3 + bob, agent.position.z - 0.07);
           bagMesh.setMatrixAt(agent.id, matrix);
         } else {
           setHidden(matrix);
@@ -253,8 +253,8 @@ export function createPedestrianSystem(
         }
 
         if (agent.hasJacket) {
-          matrix.makeScale(0.92, fade * 0.86, 0.9);
-          matrix.setPosition(agent.position.x, 1.12 + bob, agent.position.z);
+          matrix.makeScale(0.95, fade * 0.88, 0.93);
+          matrix.setPosition(agent.position.x, 1.38 + bob, agent.position.z);
           jacketMesh.setMatrixAt(agent.id, matrix);
         } else {
           setHidden(matrix);
@@ -263,7 +263,7 @@ export function createPedestrianSystem(
 
         if (agent.hasHair) {
           matrix.makeScale(1, fade, 1);
-          matrix.setPosition(agent.position.x, 1.8 + bob, agent.position.z);
+          matrix.setPosition(agent.position.x, 2.2 + bob, agent.position.z);
           hairMesh.setMatrixAt(agent.id, matrix);
         } else {
           setHidden(matrix);

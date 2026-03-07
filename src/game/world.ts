@@ -256,8 +256,21 @@ function addRoadVisuals(
       continue;
     }
 
+    // Service anchors: place on roadside edges near sidewalks so pickups aren't in traffic
+    const sideOffset = WORLD_CONFIG.tileSize / 2 - 3;
     const verticalFlow = northRoad && southRoad;
     const horizontalFlow = eastRoad && westRoad;
+    if (verticalFlow && !horizontalFlow) {
+      pickupAnchors.push(new THREE.Vector3(center.x - sideOffset, 1, center.z));
+      pickupAnchors.push(new THREE.Vector3(center.x + sideOffset, 1, center.z));
+    } else if (horizontalFlow && !verticalFlow) {
+      pickupAnchors.push(new THREE.Vector3(center.x, 1, center.z - sideOffset));
+      pickupAnchors.push(new THREE.Vector3(center.x, 1, center.z + sideOffset));
+    } else {
+      // Intersection: place at corners, not center
+      pickupAnchors.push(new THREE.Vector3(center.x - sideOffset, 1, center.z - sideOffset));
+      pickupAnchors.push(new THREE.Vector3(center.x + sideOffset, 1, center.z + sideOffset));
+    }
 
     if (tile.tileType === "boulevard") {
       const boulevardVertical = verticalFlow || (!horizontalFlow && (northRoad || southRoad));
@@ -331,8 +344,8 @@ function createBuildingMesh(archetype: BuildingArchetype, rng: () => number): Bu
 
   const addFacadeBands = (w: number, d: number, hBandCount: number): void => {
     for (let i = 0; i < hBandCount; i += 1) {
-      const y = 2 + i * ((h - 4) / Math.max(1, hBandCount - 1));
-      const band = new THREE.Mesh(new THREE.BoxGeometry(w * 0.92, 0.12, d * 0.92), mats.trim);
+      const y = 2 + i * ((h * 0.7 - 2) / Math.max(1, hBandCount - 1));
+      const band = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, 0.1, d * 0.9), mats.trim);
       band.position.set(0, y, 0);
       band.castShadow = true;
       band.receiveShadow = true;
@@ -340,17 +353,19 @@ function createBuildingMesh(archetype: BuildingArchetype, rng: () => number): Bu
     }
   };
 
-  const addWindowGrid = (w: number, d: number, rows: number, cols: number): void => {
+  const addWindowGrid = (w: number, d: number, rows: number, cols: number, maxY?: number): void => {
     const panelThickness = 0.08;
+    const topY = maxY ?? h;
     for (let r = 0; r < rows; r += 1) {
-      const y = 2.1 + r * ((h - 4.2) / Math.max(1, rows - 1));
+      const y = 2.1 + r * ((topY - 4.2) / Math.max(1, rows - 1));
+      if (y > topY - 0.5) continue;
       for (let c = 0; c < cols; c += 1) {
         const x = -w / 2 + 1 + c * ((w - 2) / Math.max(1, cols - 1));
         const front = new THREE.Mesh(new THREE.BoxGeometry((w - 2) / Math.max(cols, 1) * 0.62, 0.4, panelThickness), mats.windowLit);
-        front.position.set(x, y, d / 2 + 0.05);
+        front.position.set(x, y, d / 2 - 0.05);
         group.add(front);
         const back = front.clone();
-        back.position.z = -d / 2 - 0.05;
+        back.position.z = -d / 2 + 0.05;
         group.add(back);
       }
     }
@@ -359,18 +374,18 @@ function createBuildingMesh(archetype: BuildingArchetype, rng: () => number): Bu
   switch (archetype.id) {
     case "glass-office": {
       addBox(width, h, depth, mats.glass, h / 2);
-      for (let i = 0; i < 10; i += 1) {
+      for (let i = 0; i < 8; i += 1) {
         const x = -width / 2 + 1 + i * ((width - 2) / 7);
-        addBox(0.12, h, depth + 0.25, mats.dark, h / 2, x);
+        addBox(0.1, h, depth - 0.1, mats.dark, h / 2, x);
       }
-      addBox(width * 0.88, 0.4, depth * 0.88, mats.trim, h + 0.2);
+      addBox(width * 0.88, 0.3, depth * 0.88, mats.trim, h + 0.15);
       break;
     }
     case "stepped-tower": {
       addBox(width, h * 0.45, depth, mats.concrete, h * 0.225);
       addBox(width * 0.78, h * 0.34, depth * 0.78, mats.concrete, h * 0.45 + h * 0.17);
       addBox(width * 0.56, h * 0.21, depth * 0.56, mats.trim, h * 0.45 + h * 0.34 + h * 0.105);
-      addWindowGrid(width * 0.9, depth * 0.9, 6, 8);
+      addWindowGrid(width, depth, 4, 6, h * 0.45);
       break;
     }
     case "art-deco-midrise": {
@@ -378,14 +393,14 @@ function createBuildingMesh(archetype: BuildingArchetype, rng: () => number): Bu
       addBox(width * 0.8, h * 0.2, depth * 0.8, mats.trim, h * 0.72 + h * 0.1);
       addBox(width * 0.25, h * 0.08, depth * 0.25, mats.trim, h * 0.72 + h * 0.2 + h * 0.04);
       addFacadeBands(width * 0.95, depth * 0.95, 5);
-      addWindowGrid(width * 0.9, depth * 0.9, 5, 6);
+      addWindowGrid(width, depth, 5, 6, h * 0.72);
       break;
     }
     case "podium-tower": {
       addBox(width, h * 0.35, depth, mats.concrete, h * 0.175);
       addBox(width * 0.64, h * 0.65, depth * 0.64, mats.glass, h * 0.35 + h * 0.325);
       addBox(width * 0.6, 0.35, depth * 0.6, mats.trim, h + 0.2);
-      addWindowGrid(width * 0.62, depth * 0.62, 7, 5);
+      addWindowGrid(width * 0.64, depth * 0.64, 5, 4, h);
       break;
     }
     case "residential-balcony": {
@@ -395,7 +410,7 @@ function createBuildingMesh(archetype: BuildingArchetype, rng: () => number): Bu
         const y = 1.5 + i * (h / floors);
         addBox(width + 0.5, 0.16, depth + 0.5, mats.trim, y);
       }
-      addWindowGrid(width * 0.9, depth * 0.9, floors, 6);
+      addWindowGrid(width, depth, floors, 6);
       break;
     }
     case "corner-rounded": {
@@ -412,10 +427,10 @@ function createBuildingMesh(archetype: BuildingArchetype, rng: () => number): Bu
     case "warehouse-loft": {
       addBox(width, h * 0.8, depth, mats.metal, h * 0.4);
       for (let i = -2; i <= 2; i += 1) {
-        addBox(0.2, h * 0.8, depth + 0.3, mats.dark, h * 0.4, i * (width / 5));
+        addBox(0.2, h * 0.8, depth - 0.2, mats.dark, h * 0.4, i * (width / 5));
       }
       addBox(width * 0.95, h * 0.12, depth * 0.95, mats.trim, h * 0.86);
-      addWindowGrid(width * 0.9, depth * 0.9, 3, 7);
+      addWindowGrid(width, depth, 3, 7, h * 0.8);
       break;
     }
     case "hangar-terminal": {
@@ -426,76 +441,76 @@ function createBuildingMesh(archetype: BuildingArchetype, rng: () => number): Bu
       roof.castShadow = true;
       roof.receiveShadow = true;
       group.add(roof);
-      addWindowGrid(width * 0.8, depth * 0.6, 2, 8);
+      addWindowGrid(width, depth, 2, 8, h * 0.44);
       break;
     }
     default:
       addBox(width, h, depth, mats.concrete, h / 2);
   }
 
-  if (rng() < 0.55) {
+  // Rooftop details - small, flush with building top
+  if (rng() < 0.3 && archetype.id !== "hangar-terminal") {
     const rooftop = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.9, 0.9, 1.1, 10),
+      new THREE.CylinderGeometry(0.6, 0.6, 0.8, 8),
       new THREE.MeshStandardMaterial({ color: "#8e6a4c", roughness: 0.72, metalness: 0.12 }),
     );
-    rooftop.position.set(randRange(rng, -width * 0.2, width * 0.2), h + 0.75, randRange(rng, -depth * 0.2, depth * 0.2));
+    rooftop.position.set(randRange(rng, -width * 0.15, width * 0.15), h + 0.4, randRange(rng, -depth * 0.15, depth * 0.15));
     rooftop.castShadow = true;
     rooftop.receiveShadow = true;
     group.add(rooftop);
+  } else {
+    rng(); rng(); // consume RNG to keep determinism
   }
 
-  if (rng() < 0.4) {
+  if (rng() < 0.2 && h > 20) {
+    const antennaH = randRange(rng, 1.5, 3.0);
     const antenna = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.05, 0.05, randRange(rng, 2.4, 5.5), 6),
+      new THREE.CylinderGeometry(0.04, 0.04, antennaH, 6),
       new THREE.MeshStandardMaterial({ color: "#c5d2de", roughness: 0.5, metalness: 0.55 }),
     );
-    antenna.position.set(randRange(rng, -width * 0.3, width * 0.3), h + 2.4, randRange(rng, -depth * 0.3, depth * 0.3));
+    antenna.position.set(randRange(rng, -width * 0.2, width * 0.2), h + antennaH / 2, randRange(rng, -depth * 0.2, depth * 0.2));
     antenna.castShadow = true;
     group.add(antenna);
+  } else {
+    rng(); rng(); rng(); // consume RNG
   }
 
-  if (rng() < 0.35) {
+  // Street-level details - flush with walls, not protruding
+  if (rng() < 0.3) {
     const sign = new THREE.Mesh(
-      new THREE.BoxGeometry(width * 0.36, 0.9, 0.16),
+      new THREE.BoxGeometry(width * 0.3, 0.7, 0.1),
       new THREE.MeshStandardMaterial({ color: "#fbbf24", emissive: "#92400e", emissiveIntensity: 0.22, roughness: 0.3 }),
     );
-    sign.position.set(0, randRange(rng, 3.5, Math.max(4, h * 0.45)), depth / 2 + 0.25);
+    sign.position.set(0, Math.min(h * 0.4, 5), depth / 2 - 0.05);
     sign.castShadow = true;
     group.add(sign);
   }
 
-  if (rng() < 0.45) {
+  if (rng() < 0.35) {
     const awning = new THREE.Mesh(
-      new THREE.BoxGeometry(width * 0.5, 0.14, 0.9),
+      new THREE.BoxGeometry(width * 0.4, 0.12, 0.7),
       new THREE.MeshStandardMaterial({ color: "#d1dbe6", roughness: 0.35, metalness: 0.28 }),
     );
-    awning.position.set(0, 2.5, depth / 2 + 0.45);
+    awning.position.set(0, 2.5, depth / 2 + 0.35);
     awning.castShadow = true;
     group.add(awning);
   }
 
+  // Facade details - kept flush with building face
   const facadeVariant = Math.floor(rng() * 4);
   if (facadeVariant === 0) {
-    for (let i = 0; i < 4; i += 1) {
-      const y = 2.5 + i * ((h - 5) / 4);
-      const brace = new THREE.Mesh(new THREE.BoxGeometry(width * 0.84, 0.08, 0.14), mats.trim);
-      brace.position.set(0, y, depth / 2 + 0.08);
+    for (let i = 0; i < 3; i += 1) {
+      const y = 2.5 + i * ((h * 0.6 - 2.5) / 3);
+      const brace = new THREE.Mesh(new THREE.BoxGeometry(width * 0.8, 0.08, 0.1), mats.trim);
+      brace.position.set(0, y, depth / 2 - 0.02);
       group.add(brace);
     }
   } else if (facadeVariant === 1) {
     for (let i = -2; i <= 2; i += 1) {
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.14, h * 0.85, 0.18), mats.dark);
-      fin.position.set(i * (width * 0.16), h * 0.44, depth / 2 + 0.08);
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, h * 0.6, 0.12), mats.dark);
+      fin.position.set(i * (width * 0.15), h * 0.35, depth / 2 - 0.02);
       group.add(fin);
     }
-  } else if (facadeVariant === 2) {
-    const inset = new THREE.Mesh(new THREE.BoxGeometry(width * 0.56, h * 0.36, 0.18), mats.glass);
-    inset.position.set(0, h * 0.38, depth / 2 + 0.09);
-    group.add(inset);
-  } else {
-    const canopy = new THREE.Mesh(new THREE.BoxGeometry(width * 0.66, 0.12, 1), mats.trim);
-    canopy.position.set(0, 3.2, depth / 2 + 0.45);
-    group.add(canopy);
   }
 
   return { group, width, depth, height: h };
@@ -971,6 +986,53 @@ export function createWorld(scene: THREE.Scene, debug = false): WorldBuildResult
     occluders,
     debugObjects,
   };
+}
+
+export function generateMinimapDataUrl(roadTiles: RoadTile[]): string {
+  const size = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+
+  // Dark background
+  ctx.fillStyle = "#0d1926";
+  ctx.fillRect(0, 0, size, size);
+
+  const gridHalf = WORLD_CONFIG.gridHalf;
+  const worldSpan = (gridHalf * 2 + 1) * WORLD_CONFIG.tileSize;
+  const worldMin = -gridHalf * WORLD_CONFIG.tileSize - WORLD_CONFIG.tileSize / 2;
+
+  const toCanvas = (worldVal: number): number => {
+    return ((worldVal - worldMin) / worldSpan) * size;
+  };
+
+  const tilePixelSize = (WORLD_CONFIG.tileSize / worldSpan) * size;
+
+  // Draw roads
+  for (const tile of roadTiles) {
+    const cx = tile.gx * WORLD_CONFIG.tileSize;
+    const cz = tile.gz * WORLD_CONFIG.tileSize;
+    const px = toCanvas(cx) - tilePixelSize / 2;
+    const py = toCanvas(cz) - tilePixelSize / 2;
+
+    if (tile.isRunway) {
+      ctx.fillStyle = "#2a3a4d";
+    } else if (tile.tileType === "boulevard") {
+      ctx.fillStyle = "#3a4a5e";
+    } else {
+      ctx.fillStyle = "#2e3e52";
+    }
+    ctx.fillRect(px, py, tilePixelSize, tilePixelSize);
+
+    // Center line
+    ctx.fillStyle = "rgba(255, 220, 150, 0.25)";
+    if (tile.tileType !== "runway") {
+      ctx.fillRect(px + tilePixelSize * 0.45, py, tilePixelSize * 0.1, tilePixelSize);
+    }
+  }
+
+  return canvas.toDataURL();
 }
 
 export function isPointOnRunway(position: THREE.Vector3, runwayBounds: WorldBuildResult["runwayBounds"]): boolean {

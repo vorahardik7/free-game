@@ -32,6 +32,129 @@ body {
     linear-gradient(180deg, #18293e 0%, #13263c 42%, #0f2032 100%);
 }
 
+/* ===== START SCREEN ===== */
+
+.start-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 180, 90, 0.18), transparent 50%),
+    radial-gradient(circle at 70% 70%, rgba(90, 160, 255, 0.12), transparent 40%),
+    linear-gradient(170deg, #0f1a2e 0%, #162438 40%, #1a2c44 100%);
+}
+
+.start-content {
+  text-align: center;
+  max-width: 640px;
+  padding: 2rem;
+}
+
+.start-title {
+  margin: 0;
+  font-family: var(--font-brand), "Trebuchet MS", sans-serif;
+  font-size: clamp(2.4rem, 6vw, 3.6rem);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  text-shadow: 0 0 40px rgba(255, 200, 100, 0.4), 0 0 80px rgba(255, 180, 60, 0.2);
+  animation: titleGlow 3s ease-in-out infinite alternate;
+}
+
+@keyframes titleGlow {
+  0% { text-shadow: 0 0 30px rgba(255, 200, 100, 0.3), 0 0 60px rgba(255, 180, 60, 0.15); }
+  100% { text-shadow: 0 0 50px rgba(255, 200, 100, 0.5), 0 0 100px rgba(255, 180, 60, 0.3); }
+}
+
+.start-subtitle {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--hud-muted);
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 2.2rem 0 1.6rem;
+}
+
+.control-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 210, 136, 0.2);
+  background: rgba(13, 33, 55, 0.6);
+  backdrop-filter: blur(12px);
+  padding: 1.1rem 1rem;
+  text-align: left;
+}
+
+.control-card h3 {
+  margin: 0 0 0.7rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: #dbeafe;
+}
+
+.control-row kbd {
+  font: inherit;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(178, 228, 255, 0.24);
+  background: rgba(8, 24, 38, 0.78);
+  color: #8de3ff;
+}
+
+.control-row span {
+  margin-left: 0.2rem;
+  color: #b8ccdf;
+}
+
+.start-goal {
+  margin: 0 0 1.8rem;
+  font-size: 0.9rem;
+  color: #c8daf0;
+}
+
+.start-button {
+  display: inline-block;
+  padding: 0.9rem 2.8rem;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffb347, #ff8f00);
+  color: #1a1000;
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 8px 30px rgba(255, 160, 40, 0.35);
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+
+.start-button:hover {
+  transform: scale(1.06);
+  box-shadow: 0 12px 40px rgba(255, 160, 40, 0.5);
+}
+
+/* ===== GAME SHELL ===== */
+
 .game-shell {
   position: relative;
   width: 100vw;
@@ -45,122 +168,76 @@ body {
   z-index: 0;
 }
 
+/* ===== HUD TOP ===== */
+
 .hud-top-shell {
   position: absolute;
   top: 0.8rem;
   left: 0.9rem;
   right: 0.9rem;
   z-index: 6;
-  display: grid;
-  grid-template-columns: auto 1fr 220px;
+  display: flex;
   align-items: start;
+  justify-content: space-between;
   gap: 0.7rem;
   pointer-events: none;
 }
 
-.brand-block,
-.status-strip,
-.mini-map,
-.hud-dock,
-.hud-footer {
+.stat-cards {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.stat-card {
   border: 1px solid var(--hud-border);
   background: linear-gradient(135deg, var(--hud-panel), var(--hud-panel-soft));
   backdrop-filter: blur(10px);
   box-shadow: 0 18px 40px rgba(2, 7, 13, 0.45);
+  border-radius: 0.9rem;
+  padding: 0.6rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
 }
 
-.brand-block {
-  border-radius: 1rem;
-  padding: 0.72rem 0.98rem;
-}
-
-.brand-block p,
-.brand-block small {
-  margin: 0;
-}
-
-.brand-block p {
-  font-family: var(--font-brand), "Trebuchet MS", sans-serif;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: clamp(0.88rem, 1.35vw, 1.12rem);
+.stat-value {
+  font-family: var(--font-brand), "Avenir Next", sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
   color: var(--accent);
+  letter-spacing: 0.04em;
+  line-height: 1.1;
 }
 
-.brand-block small {
-  display: block;
-  margin-top: 0.16rem;
-  color: var(--hud-muted);
-  font-size: 0.64rem;
+.stat-label {
+  font-size: 0.56rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  color: var(--hud-muted);
+  margin-top: 0.2rem;
 }
 
-.brand-block strong {
-  display: inline-block;
-  margin-top: 0.3rem;
-  padding: 0.18rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 221, 170, 0.26);
-  background: rgba(255, 184, 94, 0.14);
-  color: #ffe4b8;
-  font-size: 0.58rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.status-strip {
-  border-radius: 999px;
-  padding: 0.45rem 0.52rem;
-  display: flex;
-  align-items: center;
-  gap: 0.42rem;
-  flex-wrap: wrap;
-}
-
-.status-strip span {
-  padding: 0.38rem 0.66rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 230, 183, 0.16);
-  background: rgba(9, 17, 29, 0.62);
-  font-size: 0.62rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #f7fbff;
-}
+/* ===== MINI MAP ===== */
 
 .mini-map {
+  border: 1px solid var(--hud-border);
+  background: linear-gradient(135deg, var(--hud-panel), var(--hud-panel-soft));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 40px rgba(2, 7, 13, 0.45);
   border-radius: 0.9rem;
   padding: 0.5rem;
+  width: 200px;
 }
 
 .mini-map-inner {
   position: relative;
   width: 100%;
-  height: 120px;
-  border-radius: 0.6rem;
+  height: 180px;
+  border-radius: 0.5rem;
   border: 1px solid rgba(255, 229, 175, 0.2);
-  background:
-    linear-gradient(180deg, rgba(22, 46, 69, 0.95), rgba(8, 23, 38, 0.92)),
-    repeating-linear-gradient(0deg, transparent 0 14px, rgba(173, 221, 255, 0.14) 14px 15px),
-    repeating-linear-gradient(90deg, transparent 0 14px, rgba(173, 221, 255, 0.14) 14px 15px),
-    radial-gradient(circle at 50% 50%, rgba(255, 205, 126, 0.1), transparent 55%);
+  background: #0d1926;
   overflow: hidden;
-}
-
-.radar-map {
-  border-radius: 999px;
-}
-
-.radar-grid {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at center, transparent 0 24%, rgba(166, 215, 255, 0.2) 24.5% 25%, transparent 25.5% 49%, rgba(166, 215, 255, 0.18) 49.5% 50%, transparent 50.5%),
-    linear-gradient(90deg, transparent 49.5%, rgba(176, 223, 255, 0.2) 50%, transparent 50.5%),
-    linear-gradient(0deg, transparent 49.5%, rgba(176, 223, 255, 0.2) 50%, transparent 50.5%);
-  z-index: 0;
 }
 
 .map-route {
@@ -170,9 +247,9 @@ body {
 }
 
 .map-route line {
-  stroke: rgba(255, 223, 172, 0.78);
-  stroke-width: 1.6;
-  stroke-dasharray: 2.8 2.2;
+  stroke: rgba(255, 223, 172, 0.5);
+  stroke-width: 0.6;
+  stroke-dasharray: 1.4 1.2;
 }
 
 .marker {
@@ -189,58 +266,137 @@ body {
 }
 
 .marker.player {
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
-  margin-top: -6px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  margin-top: -5px;
   background: var(--accent-cool);
-}
-
-.marker.center {
-  left: 50%;
-  top: 50%;
+  box-shadow: 0 0 6px 2px rgba(107, 212, 255, 0.5);
 }
 
 .marker.pickup {
   background: #2dd4bf;
+  box-shadow: 0 0 6px 2px rgba(45, 212, 191, 0.4);
 }
 
 .marker.dropoff {
   background: var(--accent-coral);
+  box-shadow: 0 0 6px 2px rgba(251, 113, 133, 0.4);
 }
 
 .marker.target {
-  width: 11px;
-  height: 11px;
-  margin-left: -5.5px;
-  margin-top: -5.5px;
-  box-shadow: 0 0 0 3px rgba(3, 11, 18, 0.48);
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  margin-top: -5px;
 }
 
-.target-arrow {
+/* ===== COMPASS WIDGET ===== */
+
+.compass-widget {
   position: absolute;
-  left: 50%;
   top: 50%;
-  width: 0;
-  height: 0;
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  border-bottom: 12px solid #ffe2aa;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-  z-index: 3;
+  right: 1rem;
+  transform: translateY(-50%);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
 }
 
-.mini-map-label {
-  margin: 0.42rem 0 0;
+.compass-ring {
+  width: 90px;
+  height: 90px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 210, 136, 0.4);
+  background: rgba(6, 20, 34, 0.7);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(2, 7, 13, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compass-arrow-svg {
+  width: 80px;
+  height: 80px;
+}
+
+.compass-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(255, 210, 136, 0.3);
+  background: rgba(6, 20, 34, 0.7);
+  backdrop-filter: blur(8px);
+}
+
+.compass-dist {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.compass-dir {
   font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hud-muted);
+}
+
+.compass-state {
+  font-size: 0.52rem;
   letter-spacing: 0.14em;
-  color: #dbeafe;
+  text-transform: uppercase;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+}
+
+.compass-state.pickup {
+  background: rgba(45, 212, 191, 0.2);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.3);
+}
+
+.compass-state.dropoff {
+  background: rgba(251, 113, 133, 0.2);
+  color: #fb7185;
+  border: 1px solid rgba(251, 113, 133, 0.3);
+}
+
+/* ===== SERVICE PILL ===== */
+
+.service-pill {
+  position: absolute;
+  top: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
+}
+
+.service-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  background: rgba(255, 184, 94, 0.14);
+  border: 1px solid rgba(255, 221, 170, 0.26);
+  color: #ffe4b8;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
+/* ===== EVENT TOAST ===== */
+
 .event-toast {
   position: absolute;
-  top: 5.1rem;
+  top: 7rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 8;
@@ -255,41 +411,7 @@ body {
   box-shadow: 0 10px 30px rgba(4, 10, 18, 0.45);
 }
 
-.vehicle-controls-top {
-  position: absolute;
-  top: 5.1rem;
-  left: 1rem;
-  z-index: 8;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.56rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 215, 152, 0.34);
-  background: rgba(14, 32, 48, 0.84);
-  color: #ecf4ff;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 0.58rem;
-  box-shadow: 0 10px 24px rgba(3, 9, 16, 0.42);
-}
-
-.vehicle-controls-top .title {
-  color: #ffd8a1;
-  padding: 0.18rem 0.4rem;
-  border-radius: 999px;
-  background: rgba(255, 184, 94, 0.14);
-  border: 1px solid rgba(255, 219, 160, 0.24);
-}
-
-.vehicle-controls-top kbd {
-  font: inherit;
-  padding: 0.12rem 0.34rem;
-  border-radius: 0.35rem;
-  border: 1px solid rgba(178, 228, 255, 0.24);
-  background: rgba(8, 24, 38, 0.78);
-  color: #8de3ff;
-}
+/* ===== BOTTOM DOCK ===== */
 
 .hud-dock {
   position: absolute;
@@ -297,12 +419,13 @@ body {
   transform: translateX(-50%);
   bottom: 0.88rem;
   z-index: 6;
-  width: min(920px, calc(100vw - 1.6rem));
+  width: min(520px, calc(100vw - 1.6rem));
+  border: 1px solid var(--hud-border);
+  background: linear-gradient(135deg, var(--hud-panel), var(--hud-panel-soft));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 40px rgba(2, 7, 13, 0.45);
   border-radius: 0.9rem;
   padding: 0.52rem;
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 0.5rem;
   pointer-events: none;
 }
 
@@ -311,6 +434,7 @@ body {
   border: 1px solid rgba(255, 229, 181, 0.2);
   background: rgba(8, 18, 31, 0.62);
   padding: 0.58rem 0.76rem;
+  text-align: center;
 }
 
 .label {
@@ -336,23 +460,25 @@ body {
   color: #eef4fc;
 }
 
-.controls .meta {
-  margin-top: 0.14rem;
-  font-size: 0.74rem;
-  color: #d7e6f8;
-}
+/* ===== HUD FOOTER ===== */
 
 .hud-footer {
   position: absolute;
   right: 0.9rem;
   bottom: 5.8rem;
   z-index: 7;
+  border: 1px solid var(--hud-border);
+  background: linear-gradient(135deg, var(--hud-panel), var(--hud-panel-soft));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 40px rgba(2, 7, 13, 0.45);
   padding: 0.4rem 0.62rem;
   border-radius: 0.58rem;
   font-size: 0.62rem;
   letter-spacing: 0.15em;
   text-transform: uppercase;
 }
+
+/* ===== OVERLAYS ===== */
 
 .game-shell::before {
   content: "";
@@ -381,29 +507,49 @@ body {
   100% { opacity: 0; }
 }
 
+/* ===== RESPONSIVE ===== */
+
 @media (max-width: 980px) {
   .hud-top-shell {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .stat-cards {
+    width: 100%;
+    justify-content: center;
   }
 
   .mini-map {
-    width: min(280px, calc(100vw - 1.6rem));
+    width: min(200px, calc(100vw - 1.6rem));
   }
 
   .hud-dock {
-    grid-template-columns: 1fr;
+    width: min(400px, calc(100vw - 1.6rem));
   }
 
   .hud-footer {
-    bottom: 9.8rem;
+    bottom: 7rem;
   }
 
-  .vehicle-controls-top {
-    top: 7.8rem;
-    left: 0.8rem;
-    right: 0.8rem;
-    border-radius: 0.7rem;
-    flex-wrap: wrap;
-    font-size: 0.56rem;
+  .compass-widget {
+    right: 0.5rem;
+  }
+
+  .compass-ring {
+    width: 70px;
+    height: 70px;
+  }
+
+  .compass-arrow-svg {
+    width: 62px;
+    height: 62px;
+  }
+
+  .event-toast {
+    top: 8rem;
+  }
+
+  .controls-grid {
+    grid-template-columns: 1fr;
   }
 }

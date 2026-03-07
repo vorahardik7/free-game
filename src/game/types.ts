@@ -169,4 +169,5 @@ export interface HudSnapshot {
   dropoffX: number;
   dropoffZ: number;
   heading: number;
+  minimapDataUrl: string;
 }
