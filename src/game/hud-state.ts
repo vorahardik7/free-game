@@ -1,0 +1,27 @@
+import type { HudSnapshot } from "./types";
+
+export const INITIAL_HUD_STATE: HudSnapshot = {
+  vehicle: "cab",
+  mode: "ground",
+  money: 0,
+  rating: 5,
+  rides: 0,
+  speed: 0,
+  message: "Loading city simulation...",
+  objective: "Pickup",
+  serviceState: "searching",
+  targetDistance: 0,
+  recentEvent: "",
+  collisionPulse: 0,
+  farePenalty: 0,
+  fps: 60,
+  hasPassenger: false,
+  worldLimit: 200,
+  playerX: 0,
+  playerZ: 0,
+  pickupX: 0,
+  pickupZ: 0,
+  dropoffX: 0,
+  dropoffZ: 0,
+  heading: 0,
+};

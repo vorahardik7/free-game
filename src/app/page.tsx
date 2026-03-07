@@ -1,65 +1,157 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { INITIAL_HUD_STATE } from "@/game/hud-state";
+import { GameRuntime } from "@/game/runtime";
+import type { HudSnapshot } from "@/game/types";
+
+const VEHICLE_NAME: Record<HudSnapshot["vehicle"], string> = {
+  cab: "City Cab",
+  plane: "Sky Hopper",
+};
+
+const MODE_NAME: Record<HudSnapshot["mode"], string> = {
+  ground: "Ground",
+  "takeoff-roll": "Takeoff Roll",
+  "landing-roll": "Landing Roll",
+  airborne: "Airborne",
+};
+
+function rotate(dx: number, dz: number, angle: number): { x: number; z: number } {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return {
+    x: dx * c - dz * s,
+    z: dx * s + dz * c,
+  };
+}
+
+function cardinalFromVector(dx: number, dz: number): string {
+  const angle = Math.atan2(dx, dz);
+  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const idx = Math.round((angle / (Math.PI * 2)) * 8) & 7;
+  return dirs[idx] ?? "N";
+}
 
 export default function Home() {
+  const mountRef = useRef<HTMLDivElement | null>(null);
+  const runtimeRef = useRef<GameRuntime | null>(null);
+  const [hud, setHud] = useState<HudSnapshot>(INITIAL_HUD_STATE);
+
+  const debugEnabled = useMemo(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return new URLSearchParams(window.location.search).get("debug") === "1";
+  }, []);
+
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) {
+      return;
+    }
+
+    const runtime = new GameRuntime({
+      mount,
+      onHud: setHud,
+      debug: debugEnabled,
+    });
+
+    runtime.start();
+    runtimeRef.current = runtime;
+
+    return () => {
+      runtime.stop();
+      runtimeRef.current = null;
+    };
+  }, [debugEnabled]);
+
+  const collisionClass = hud.collisionPulse > 0.15 ? "is-colliding" : "";
+  const serviceLabel = hud.serviceState === "boarding" ? "Boarding" : hud.serviceState === "in-ride" ? "Fare Running" : "Searching";
+  const isPlane = hud.vehicle === "plane";
+  const targetX = hud.hasPassenger ? hud.dropoffX : hud.pickupX;
+  const targetZ = hud.hasPassenger ? hud.dropoffZ : hud.pickupZ;
+  const worldDx = targetX - hud.playerX;
+  const worldDz = targetZ - hud.playerZ;
+  const local = rotate(worldDx, worldDz, -hud.heading);
+  const mapRange = 140;
+  const mapDist = Math.hypot(local.x, local.z);
+  const clampedScale = mapDist > mapRange ? mapRange / mapDist : 1;
+  const plotX = 50 + (local.x * clampedScale / mapRange) * 42;
+  const plotY = 50 - (local.z * clampedScale / mapRange) * 42;
+  const targetFar = mapDist > mapRange;
+  const arrowAngle = Math.atan2(plotX - 50, 50 - plotY) * (180 / Math.PI);
+  const distanceMeters = Math.round(hud.targetDistance * 3.4);
+  const dirLabel = cardinalFromVector(worldDx, worldDz);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className={`game-shell ${collisionClass}`}>
+      <div className="canvas-host" ref={mountRef} />
+
+      <header className="hud-top-shell">
+        <div className="brand-block">
+          <p>Golden Hour Rides</p>
+          <small>Coastal Cab + Air Service</small>
+          <strong>{serviceLabel}</strong>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        <div className="status-strip">
+          <span>{VEHICLE_NAME[hud.vehicle]}</span>
+          <span>{MODE_NAME[hud.mode]}</span>
+          <span>{hud.speed} mph</span>
+          <span>${hud.money}</span>
+          <span>{hud.rating.toFixed(2)} rating</span>
+          <span>{distanceMeters}m to target</span>
+        </div>
+
+        <div className="mini-map">
+          <div className="mini-map-inner radar-map">
+            <div className="radar-grid" />
+            <svg className="map-route" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <line x1={50} y1={50} x2={plotX} y2={plotY} />
+            </svg>
+            <i className="marker player center" />
+            <i
+              className={`marker target ${hud.hasPassenger ? "dropoff" : "pickup"}`}
+              style={{ left: `${plotX}%`, top: `${plotY}%` }}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            {targetFar ? (
+              <i className="target-arrow" style={{ transform: `translate(-50%, -50%) rotate(${arrowAngle}deg) translateY(-44px)` }} />
+            ) : null}
+          </div>
+          <p className="mini-map-label">Head {dirLabel} • {distanceMeters}m</p>
         </div>
-      </main>
+      </header>
+
+      {isPlane ? (
+        <div className="vehicle-controls-top">
+          <span className="title">Plane Controls</span>
+          <span><kbd>W/S</kbd> Throttle</span>
+          <span><kbd>A/D</kbd> Turn</span>
+          <span><kbd>Q</kbd> Lift/Climb</span>
+          <span><kbd>E</kbd> Descend</span>
+        </div>
+      ) : null}
+
+      {hud.recentEvent ? <div className="event-toast">{hud.recentEvent}</div> : null}
+
+      <section className="hud-dock">
+        <div className="dock-item">
+          <p className="label">Objective</p>
+          <h2>{hud.objective}</h2>
+          <p className="meta">{hud.message}</p>
+        </div>
+
+        <div className="dock-item controls">
+          <p className="label">Controls</p>
+          <p className="meta">WASD/Arrows move</p>
+          <p className="meta">1 cab, 2 plane</p>
+          <p className="meta">Q takeoff/climb, E descend</p>
+          <p className="meta">Stop at pickup to board passenger</p>
+        </div>
+      </section>
+
+      <div className="hud-footer">FPS {hud.fps}{debugEnabled ? " • DEBUG" : ""}</div>
     </div>
   );
 }
