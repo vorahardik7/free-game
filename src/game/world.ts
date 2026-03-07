@@ -217,6 +217,42 @@ function addRoadVisuals(
         scene.add(mesh);
       });
 
+      // Curb colliders at outer sidewalk edges to prevent driving onto grass
+      const curbHeight = 0.5;
+      const curbThickness = 0.6;
+      if (!northRoad) {
+        colliders.push(makeAabbCollider(
+          `curb-n-${tile.gx},${tile.gz}`, "prop", "residential",
+          new THREE.Vector3(center.x, curbHeight / 2, center.z - roadHalf),
+          new THREE.Vector3(roadHalf, curbHeight / 2, curbThickness / 2),
+          true,
+        ));
+      }
+      if (!southRoad) {
+        colliders.push(makeAabbCollider(
+          `curb-s-${tile.gx},${tile.gz}`, "prop", "residential",
+          new THREE.Vector3(center.x, curbHeight / 2, center.z + roadHalf),
+          new THREE.Vector3(roadHalf, curbHeight / 2, curbThickness / 2),
+          true,
+        ));
+      }
+      if (!westRoad) {
+        colliders.push(makeAabbCollider(
+          `curb-w-${tile.gx},${tile.gz}`, "prop", "residential",
+          new THREE.Vector3(center.x - roadHalf, curbHeight / 2, center.z),
+          new THREE.Vector3(curbThickness / 2, curbHeight / 2, roadHalf),
+          true,
+        ));
+      }
+      if (!eastRoad) {
+        colliders.push(makeAabbCollider(
+          `curb-e-${tile.gx},${tile.gz}`, "prop", "residential",
+          new THREE.Vector3(center.x + roadHalf, curbHeight / 2, center.z),
+          new THREE.Vector3(curbThickness / 2, curbHeight / 2, roadHalf),
+          true,
+        ));
+      }
+
       const cornerFillers = [
         { enabled: !northRoad && !westRoad, x: -roadHalf + sidewalkWidth / 2, z: -roadHalf + sidewalkWidth / 2 },
         { enabled: !northRoad && !eastRoad, x: roadHalf - sidewalkWidth / 2, z: -roadHalf + sidewalkWidth / 2 },
@@ -701,6 +737,107 @@ function addNature(
   buildInstancedTree("palm", new THREE.CylinderGeometry(0.18, 0.3, 4.5, 6), new THREE.SphereGeometry(1.4, 7, 6), 5.2, 4.5);
 }
 
+function addParkedCars(
+  scene: THREE.Scene,
+  roadTiles: RoadTile[],
+  colliders: Collider[],
+): void {
+  const rng = seededRng(33781);
+  const roadLookup = new Set(roadTiles.map((tile) => tile.id));
+  const carPositions: { pos: THREE.Vector3; angle: number; colorIdx: number }[] = [];
+  const CAR_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6", "#e2e8f0", "#1e293b", "#06b6d4", "#f97316", "#a855f7"];
+
+  for (const tile of roadTiles) {
+    if (tile.isRunway || tile.tileType === "boulevard") continue;
+
+    const center = toWorld(tile.gx, tile.gz);
+    const northRoad = roadLookup.has(tileKey(tile.gx, tile.gz - 1));
+    const southRoad = roadLookup.has(tileKey(tile.gx, tile.gz + 1));
+    const eastRoad = roadLookup.has(tileKey(tile.gx + 1, tile.gz));
+    const westRoad = roadLookup.has(tileKey(tile.gx - 1, tile.gz));
+
+    // Place cars along edges that border non-road tiles
+    const laneEdge = WORLD_CONFIG.tileSize / 2 - 4.5;
+    const verticalFlow = northRoad && southRoad;
+    const horizontalFlow = eastRoad && westRoad;
+
+    if (verticalFlow && !horizontalFlow) {
+      // Cars parked along east/west edges
+      if (!eastRoad && rng() < 0.45) {
+        const z = center.z + randRange(rng, -8, 8);
+        carPositions.push({ pos: new THREE.Vector3(center.x + laneEdge, 0, z), angle: Math.PI / 2, colorIdx: Math.floor(rng() * CAR_COLORS.length) });
+      } else { rng(); rng(); }
+      if (!westRoad && rng() < 0.45) {
+        const z = center.z + randRange(rng, -8, 8);
+        carPositions.push({ pos: new THREE.Vector3(center.x - laneEdge, 0, z), angle: -Math.PI / 2, colorIdx: Math.floor(rng() * CAR_COLORS.length) });
+      } else { rng(); rng(); }
+    } else if (horizontalFlow && !verticalFlow) {
+      if (!northRoad && rng() < 0.45) {
+        const x = center.x + randRange(rng, -8, 8);
+        carPositions.push({ pos: new THREE.Vector3(x, 0, center.z - laneEdge), angle: 0, colorIdx: Math.floor(rng() * CAR_COLORS.length) });
+      } else { rng(); rng(); }
+      if (!southRoad && rng() < 0.45) {
+        const x = center.x + randRange(rng, -8, 8);
+        carPositions.push({ pos: new THREE.Vector3(x, 0, center.z + laneEdge), angle: Math.PI, colorIdx: Math.floor(rng() * CAR_COLORS.length) });
+      } else { rng(); rng(); }
+    } else {
+      rng(); rng(); rng(); rng(); // consume for determinism
+    }
+  }
+
+  if (carPositions.length === 0) return;
+
+  // Car body: simple box
+  const bodyGeo = new THREE.BoxGeometry(3.8, 0.7, 1.8);
+  const cabinGeo = new THREE.BoxGeometry(2.0, 0.6, 1.6);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.4, metalness: 0.35 });
+  const cabinMat = new THREE.MeshStandardMaterial({ color: "#334155", roughness: 0.3, metalness: 0.5, transparent: true, opacity: 0.8 });
+
+  const bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, carPositions.length);
+  const cabins = new THREE.InstancedMesh(cabinGeo, cabinMat, carPositions.length);
+  bodies.castShadow = true;
+  bodies.receiveShadow = true;
+  cabins.castShadow = true;
+
+  const matrix = new THREE.Matrix4();
+  const rot = new THREE.Quaternion();
+  const color = new THREE.Color();
+  const euler = new THREE.Euler();
+
+  carPositions.forEach((car, idx) => {
+    const renderAngle = car.angle;
+    euler.set(0, renderAngle, 0);
+    rot.setFromEuler(euler);
+    matrix.compose(new THREE.Vector3(car.pos.x, 0.75, car.pos.z), rot, new THREE.Vector3(1, 1, 1));
+    bodies.setMatrixAt(idx, matrix);
+
+    matrix.compose(new THREE.Vector3(car.pos.x, 1.2, car.pos.z), rot, new THREE.Vector3(1, 1, 1));
+    cabins.setMatrixAt(idx, matrix);
+
+    color.set(CAR_COLORS[car.colorIdx % CAR_COLORS.length]!);
+    bodies.setColorAt(idx, color);
+
+    // Collider for parked car
+    const halfW = 1.9;
+    const halfD = 0.9;
+    const cosA = Math.cos(renderAngle);
+    const sinA = Math.sin(renderAngle);
+    const extentX = Math.abs(cosA) * halfW + Math.abs(sinA) * halfD;
+    const extentZ = Math.abs(sinA) * halfW + Math.abs(cosA) * halfD;
+    colliders.push(makeAabbCollider(
+      `parked-car-${idx}`, "prop", "residential",
+      new THREE.Vector3(car.pos.x, 0.6, car.pos.z),
+      new THREE.Vector3(extentX, 0.6, extentZ),
+      true,
+    ));
+  });
+
+  bodies.instanceMatrix.needsUpdate = true;
+  cabins.instanceMatrix.needsUpdate = true;
+  if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+  scene.add(bodies, cabins);
+}
+
 function addProps(
   scene: THREE.Scene,
   roadTiles: RoadTile[],
@@ -959,6 +1096,7 @@ export function createWorld(scene: THREE.Scene, debug = false): WorldBuildResult
   addBuildings(scene, tileMeta, roadSet, colliders, occluders);
   addNature(scene, tileMeta, roadSet, colliders, occluders);
   addProps(scene, roadTiles, colliders);
+  addParkedCars(scene, roadTiles, colliders);
 
   const sidewalkNodes = createSidewalkGraph(tileMeta, roadSet);
 
@@ -980,6 +1118,7 @@ export function createWorld(scene: THREE.Scene, debug = false): WorldBuildResult
   return {
     colliders,
     roadTiles,
+    tileMeta,
     pickupAnchors,
     sidewalkNodes,
     runwayBounds,
@@ -988,16 +1127,12 @@ export function createWorld(scene: THREE.Scene, debug = false): WorldBuildResult
   };
 }
 
-export function generateMinimapDataUrl(roadTiles: RoadTile[]): string {
+export function generateMinimapDataUrl(roadTiles: RoadTile[], tileMeta: { gx: number; gz: number; key: string; zone: string }[]): string {
   const size = 256;
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
-
-  // Dark background
-  ctx.fillStyle = "#0d1926";
-  ctx.fillRect(0, 0, size, size);
 
   const gridHalf = WORLD_CONFIG.gridHalf;
   const worldSpan = (gridHalf * 2 + 1) * WORLD_CONFIG.tileSize;
@@ -1009,7 +1144,39 @@ export function generateMinimapDataUrl(roadTiles: RoadTile[]): string {
 
   const tilePixelSize = (WORLD_CONFIG.tileSize / worldSpan) * size;
 
-  // Draw roads
+  // Background: subtle green for grass
+  ctx.fillStyle = "#0f1f14";
+  ctx.fillRect(0, 0, size, size);
+
+  // Water area (north)
+  const waterY = toCanvas(-5 * WORLD_CONFIG.tileSize - WORLD_CONFIG.tileSize / 2);
+  ctx.fillStyle = "#0d1a2a";
+  ctx.fillRect(0, 0, size, waterY);
+
+  // Park area (south)
+  const parkY = toCanvas(3 * WORLD_CONFIG.tileSize - WORLD_CONFIG.tileSize / 2);
+  ctx.fillStyle = "#0f2218";
+  ctx.fillRect(0, parkY, size, size - parkY);
+
+  // Draw building blocks (non-road tiles)
+  const roadSet = new Set(roadTiles.map((t) => t.id));
+  for (const tile of tileMeta) {
+    if (roadSet.has(tile.key)) continue;
+    const cx = tile.gx * WORLD_CONFIG.tileSize;
+    const cz = tile.gz * WORLD_CONFIG.tileSize;
+    const px = toCanvas(cx) - tilePixelSize / 2;
+    const py = toCanvas(cz) - tilePixelSize / 2;
+    const pad = tilePixelSize * 0.12;
+
+    if (tile.zone === "park") continue; // parks stay green
+    if (tile.zone === "waterfront" && tile.gz <= -5) continue; // water stays blue
+
+    // Building footprint
+    ctx.fillStyle = tile.zone === "downtown" ? "#1a2535" : tile.zone === "airport" ? "#18222e" : "#161f28";
+    ctx.fillRect(px + pad, py + pad, tilePixelSize - pad * 2, tilePixelSize - pad * 2);
+  }
+
+  // Draw roads on top
   for (const tile of roadTiles) {
     const cx = tile.gx * WORLD_CONFIG.tileSize;
     const cz = tile.gz * WORLD_CONFIG.tileSize;
@@ -1026,9 +1193,9 @@ export function generateMinimapDataUrl(roadTiles: RoadTile[]): string {
     ctx.fillRect(px, py, tilePixelSize, tilePixelSize);
 
     // Center line
-    ctx.fillStyle = "rgba(255, 220, 150, 0.25)";
+    ctx.fillStyle = "rgba(255, 220, 150, 0.2)";
     if (tile.tileType !== "runway") {
-      ctx.fillRect(px + tilePixelSize * 0.45, py, tilePixelSize * 0.1, tilePixelSize);
+      ctx.fillRect(px + tilePixelSize * 0.46, py, tilePixelSize * 0.08, tilePixelSize);
     }
   }
 

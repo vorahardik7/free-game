@@ -25,6 +25,9 @@ interface RideState {
   hasPassenger: boolean;
   isBoarding: boolean;
   boardingTimer: number;
+  isDropping: boolean;
+  droppingTimer: number;
+  dropPosition: THREE.Vector3;
   pickup: THREE.Vector3;
   dropoff: THREE.Vector3;
   comfort: number;
@@ -246,7 +249,7 @@ export class GameRuntime {
     scene.add(cityGlow);
 
     const world = createWorld(scene, this.debug);
-    const minimapDataUrl = generateMinimapDataUrl(world.roadTiles);
+    const minimapDataUrl = generateMinimapDataUrl(world.roadTiles, world.tileMeta);
     const hash = new SpatialHash(WORLD_CONFIG.tileSize);
     hash.bulkInsert(world.colliders);
 
@@ -273,6 +276,9 @@ export class GameRuntime {
       hasPassenger: false,
       isBoarding: false,
       boardingTimer: 0,
+      isDropping: false,
+      droppingTimer: 0,
+      dropPosition: new THREE.Vector3(),
       pickup: pickAnchorInRange(world.pickupAnchors, vehicle.position, 40, 100),
       dropoff: pickAnchorInRange(world.pickupAnchors, vehicle.position, 140, 300),
       comfort: 1,
@@ -356,6 +362,15 @@ export class GameRuntime {
       const rideRating = Math.max(3.4, Math.min(5, 3.5 + ride.comfort * 1.5));
       ride.rating = (ride.rating * (ride.rides - 1) + rideRating) / ride.rides;
       ride.hasPassenger = false;
+
+      // Show passenger exiting at dropoff
+      ride.isDropping = true;
+      ride.droppingTimer = 1.2;
+      const doorOffset = new THREE.Vector3(1.3, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), vehicle.heading);
+      ride.dropPosition.copy(vehicle.position).add(doorOffset);
+      waitingPassenger.visible = true;
+      waitingPassenger.position.copy(ride.dropPosition);
+
       ride.pickup = pickAnchorInRange(world.pickupAnchors, ride.dropoff, 40, 100);
       ride.message = `Ride complete +$${net}. Find next pickup.`;
       ride.toast = `Ride Complete +$${net}`;
@@ -404,7 +419,20 @@ export class GameRuntime {
       const groundedForService = vehicle.id !== "plane" || vehicle.mode !== "airborne";
       const triggerDistance = groundedForService ? 4.8 : 999;
 
-      if (!ride.hasPassenger && !ride.isBoarding) {
+      // Handle dropoff animation
+      if (ride.isDropping) {
+        waitingPassenger.visible = true;
+        // Walk away from vehicle
+        const walkDir = ride.dropPosition.clone().sub(vehicle.position).normalize();
+        ride.dropPosition.addScaledVector(walkDir, dt * 1.8);
+        waitingPassenger.position.copy(ride.dropPosition);
+        waitingPassenger.position.y = Math.sin(now * 5.2) * 0.02;
+        ride.droppingTimer -= dt;
+        if (ride.droppingTimer <= 0) {
+          ride.isDropping = false;
+          waitingPassenger.visible = false;
+        }
+      } else if (!ride.hasPassenger && !ride.isBoarding) {
         waitingPassenger.visible = true;
         waitingPassenger.position.set(ride.pickup.x + 0.8, 0, ride.pickup.z + 0.4);
         waitingPassenger.position.y += Math.sin(now * 5.2) * 0.02;

@@ -27,7 +27,7 @@ export interface VehicleUpdateResult {
 const BASE_FORWARD = new THREE.Vector3(0, 0, 1);
 
 const carConfig = {
-  cab: { maxForward: 22, maxReverse: 7, accel: 14, drag: 0.965, turnRate: 1.45 },
+  cab: { maxForward: 22, maxReverse: 14, accel: 14, reverseAccel: 18, drag: 0.955, turnRate: 1.45 },
 };
 
 const planeConfig = {
@@ -106,6 +106,34 @@ function createCabModel(): THREE.Group {
   const sideTrim2 = sideTrim.clone();
   sideTrim2.position.z = -1.08;
 
+  // Headlights
+  const headlightMat = new THREE.MeshStandardMaterial({ color: "#fffbe6", emissive: "#fff5cc", emissiveIntensity: 1.0, roughness: 0.1 });
+  const headlightL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.5), headlightMat);
+  headlightL.position.set(-2.5, 0.82, 0.65);
+  const headlightR = headlightL.clone();
+  headlightR.position.z = -0.65;
+
+  // Taillights
+  const taillightMat = new THREE.MeshStandardMaterial({ color: "#ef4444", emissive: "#dc2626", emissiveIntensity: 0.8, roughness: 0.2 });
+  const taillightL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.45), taillightMat);
+  taillightL.position.set(2.5, 0.82, 0.7);
+  const taillightR = taillightL.clone();
+  taillightR.position.z = -0.7;
+
+  // Side mirrors
+  const mirrorMat = new THREE.MeshStandardMaterial({ color: "#111827", roughness: 0.4, metalness: 0.6 });
+  const mirrorL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.22), mirrorMat);
+  mirrorL.position.set(-0.8, 1.52, 1.2);
+  const mirrorR = mirrorL.clone();
+  mirrorR.position.z = -1.2;
+
+  // Door handles
+  const handleMat = new THREE.MeshStandardMaterial({ color: "#c0c8d0", roughness: 0.3, metalness: 0.6 });
+  const handleL = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.06), handleMat);
+  handleL.position.set(0.2, 1.3, 1.12);
+  const handleR = handleL.clone();
+  handleR.position.z = -1.12;
+
   g.add(
     base,
     cabin,
@@ -120,6 +148,14 @@ function createCabModel(): THREE.Group {
     archFrontR,
     archRearL,
     archRearR,
+    headlightL,
+    headlightR,
+    taillightL,
+    taillightR,
+    mirrorL,
+    mirrorR,
+    handleL,
+    handleR,
   );
   return g;
 }
@@ -231,8 +267,15 @@ function updateGroundVehicle(
   const conf = carConfig.cab;
   const boostMul = input.boost ? 1.7 : 1;
   const maxForward = conf.maxForward * boostMul;
-  const accel = conf.accel * (input.boost ? 1.45 : 1);
+  const isReversing = input.throttle < 0;
+  const accel = isReversing ? conf.reverseAccel : conf.accel * (input.boost ? 1.45 : 1);
   state.speed += input.throttle * accel * dt;
+
+  // Active braking: if throttle opposes current direction, brake harder
+  if ((state.speed > 0.5 && input.throttle < -0.1) || (state.speed < -0.5 && input.throttle > 0.1)) {
+    state.speed *= 0.92;
+  }
+
   if (Math.abs(input.throttle) < 0.01) {
     state.speed *= conf.drag;
   }
@@ -240,8 +283,9 @@ function updateGroundVehicle(
     state.speed = 0;
   }
 
-  state.speed = clamp(state.speed, -conf.maxReverse, maxForward);
-  const steeringInfluence = Math.abs(state.speed) < 1 ? 0 : clamp(Math.abs(state.speed) / conf.maxForward, 0.25, 1);
+  state.speed = clamp(state.speed, -conf.maxReverse * boostMul, maxForward);
+  // Allow steering at any speed (including stopped/reversing) with a minimum influence
+  const steeringInfluence = Math.max(0.4, clamp(Math.abs(state.speed) / conf.maxForward, 0.4, 1));
   state.heading += input.steer * conf.turnRate * dt * steeringInfluence * (state.speed >= 0 ? 1 : -1);
 
   const delta = new THREE.Vector3(Math.sin(state.heading) * state.speed * dt, 0, Math.cos(state.heading) * state.speed * dt);
@@ -252,7 +296,11 @@ function updateGroundVehicle(
   state.position.x = clamp(state.position.x, -WORLD_CONFIG.worldLimit, WORLD_CONFIG.worldLimit);
   state.position.z = clamp(state.position.z, -WORLD_CONFIG.worldLimit, WORLD_CONFIG.worldLimit);
 
-  const impactSeverity = result.hit ? clamp(0.25 + result.blockedRatio * 0.5, 0.25, 0.8) : 0;
+  // Softer collision: only lose speed proportional to how blocked we were
+  if (result.hit) {
+    state.speed *= (1 - result.blockedRatio * 0.35);
+  }
+  const impactSeverity = result.hit ? clamp(0.1 + result.blockedRatio * 0.3, 0.1, 0.5) : 0;
   state.lastImpact = impactSeverity;
 
   return {
@@ -349,6 +397,11 @@ function updatePlane(
     state.position.z += Math.cos(state.heading) * state.speed * dt;
     state.position.y += state.verticalSpeed * dt;
 
+    // Smooth touchdown: gradually reduce vertical speed as we approach ground
+    if (state.position.y < 3.5 && state.verticalSpeed < 0) {
+      const groundProximity = clamp((3.5 - state.position.y) / 2.5, 0, 1);
+      state.verticalSpeed *= (1 - groundProximity * 0.15);
+    }
     if (state.position.y < 1.1) {
       state.position.y = 1;
       state.mode = "landing-roll";

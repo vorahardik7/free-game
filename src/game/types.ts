@@ -119,9 +119,19 @@ export interface WorldConfig {
   worldLimit: number;
 }
 
+export interface MinimapTile {
+  gx: number;
+  gz: number;
+  key: string;
+  zone: string;
+  road: boolean;
+  isRunway: boolean;
+}
+
 export interface WorldBuildResult {
   colliders: Collider[];
   roadTiles: RoadTile[];
+  tileMeta: MinimapTile[];
   pickupAnchors: THREE.Vector3[];
   sidewalkNodes: SidewalkNode[];
   runwayBounds: {
