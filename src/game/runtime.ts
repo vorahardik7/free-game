@@ -416,8 +416,9 @@ export class GameRuntime {
       const forward = getVehicleForward(vehicle);
       const activeTarget = ride.hasPassenger ? ride.dropoff : ride.pickup;
       const proximity = dist2d(vehicle.position, activeTarget);
-      const groundedForService = vehicle.id !== "plane" || vehicle.mode !== "airborne";
-      const triggerDistance = groundedForService ? 4.8 : 999;
+      const nearTarget = proximity <= 4.8;
+      const planeServiceReady = vehicle.id !== "plane"
+        || (vehicle.mode !== "airborne" && vehicle.position.y <= 1.3 && Math.abs(vehicle.speed) <= 6.5);
 
       // Handle dropoff animation
       if (ride.isDropping) {
@@ -437,9 +438,11 @@ export class GameRuntime {
         waitingPassenger.position.set(ride.pickup.x + 0.8, 0, ride.pickup.z + 0.4);
         waitingPassenger.position.y += Math.sin(now * 5.2) * 0.02;
 
-        if (proximity <= triggerDistance && Math.abs(vehicle.speed) <= 4.2) {
+        if (nearTarget && planeServiceReady && Math.abs(vehicle.speed) <= 4.2) {
           startBoarding();
-        } else if (proximity <= triggerDistance) {
+        } else if (nearTarget && !planeServiceReady) {
+          ride.message = "Land and slow down to pick up.";
+        } else if (nearTarget) {
           ride.message = "Slow down to pick up passenger.";
         }
       }
@@ -461,9 +464,11 @@ export class GameRuntime {
         const elapsed = (performance.now() - ride.rideStartMs) / 1000;
         const travelFromPickup = dist2d(vehicle.position, ride.pickup);
         const dropoffUnlocked = elapsed >= ride.minDropoffUnlockSeconds && travelFromPickup >= ride.minDropoffUnlockDistance;
-        if (proximity <= triggerDistance && dropoffUnlocked) {
+        if (nearTarget && planeServiceReady && dropoffUnlocked) {
           completeRide();
-        } else if (proximity <= triggerDistance && !dropoffUnlocked) {
+        } else if (nearTarget && !planeServiceReady) {
+          ride.message = "Land at the drop zone to complete ride.";
+        } else if (nearTarget && !dropoffUnlocked) {
           ride.message = "Continue driving. Dropoff not unlocked yet.";
         }
       }

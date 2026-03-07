@@ -273,7 +273,7 @@ function updateGroundVehicle(
 
   // Active braking: if throttle opposes current direction, brake harder
   if ((state.speed > 0.5 && input.throttle < -0.1) || (state.speed < -0.5 && input.throttle > 0.1)) {
-    state.speed *= 0.92;
+    state.speed *= 0.8;
   }
 
   if (Math.abs(input.throttle) < 0.01) {
@@ -325,6 +325,9 @@ function updatePlane(
   if (state.mode !== "airborne") {
     const groundBoost = input.boost ? 1.28 : 1;
     state.speed += input.throttle * planeConfig.accel * groundBoost * dt;
+    if ((state.speed > 0.5 && input.throttle < -0.1) || (state.speed < -0.5 && input.throttle > 0.1)) {
+      state.speed *= 0.84;
+    }
     if (Math.abs(input.throttle) < 0.01) {
       state.speed *= planeConfig.dragGround;
     }
