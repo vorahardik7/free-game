@@ -200,22 +200,35 @@ function addRoadVisuals(
     scene.add(road);
 
     if (tile.sidewalks) {
-      const edges = [
-        { blocked: !northRoad, x: 0, z: -roadHalf + sidewalkWidth / 2, w: tileSize + 0.8, d: sidewalkWidth + 0.2 },
-        { blocked: !southRoad, x: 0, z: roadHalf - sidewalkWidth / 2, w: tileSize + 0.8, d: sidewalkWidth + 0.2 },
-        { blocked: !westRoad, x: -roadHalf + sidewalkWidth / 2, z: 0, w: sidewalkWidth + 0.2, d: tileSize + 0.8 },
-        { blocked: !eastRoad, x: roadHalf - sidewalkWidth / 2, z: 0, w: sidewalkWidth + 0.2, d: tileSize + 0.8 },
-      ];
+      const overlap = 0.4;
 
-      edges.forEach((edge) => {
-        if (!edge.blocked) {
-          return;
-        }
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(edge.w, 0.18, edge.d), mats.sidewalk);
-        mesh.position.set(center.x + edge.x, 0.16, center.z + edge.z);
+      const addSidewalkEdge = (
+        axis: "x" | "z",
+        side: number,
+        perpStart: boolean,
+        perpEnd: boolean,
+      ): void => {
+        let lo = -roadHalf - overlap;
+        let hi = roadHalf + overlap;
+        if (perpStart) lo = -roadHalf + sidewalkWidth;
+        if (perpEnd) hi = roadHalf - sidewalkWidth;
+        const span = hi - lo;
+        if (span <= 0) return;
+        const mid = (lo + hi) / 2;
+        const w = axis === "x" ? span : sidewalkWidth + 0.2;
+        const d = axis === "z" ? span : sidewalkWidth + 0.2;
+        const ox = axis === "x" ? mid : side;
+        const oz = axis === "z" ? mid : side;
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, 0.18, d), mats.sidewalk);
+        mesh.position.set(center.x + ox, 0.16, center.z + oz);
         mesh.receiveShadow = true;
         scene.add(mesh);
-      });
+      };
+
+      if (!northRoad) addSidewalkEdge("x", -roadHalf + sidewalkWidth / 2, westRoad, eastRoad);
+      if (!southRoad) addSidewalkEdge("x", roadHalf - sidewalkWidth / 2, westRoad, eastRoad);
+      if (!westRoad) addSidewalkEdge("z", -roadHalf + sidewalkWidth / 2, northRoad, southRoad);
+      if (!eastRoad) addSidewalkEdge("z", roadHalf - sidewalkWidth / 2, northRoad, southRoad);
 
       // Curb colliders at outer sidewalk edges to prevent driving onto grass
       const curbHeight = 0.5;
@@ -268,6 +281,74 @@ function addRoadVisuals(
         filler.position.set(center.x + corner.x, 0.16, center.z + corner.z);
         filler.receiveShadow = true;
         scene.add(filler);
+      });
+
+      // Rounded curb corner caps to remove diagonal gaps at road turns/intersections.
+      const cornerRadius = sidewalkWidth + 0.24;
+      const makeCornerCap = (cx: number, cz: number, thetaStart: number, enabled: boolean): void => {
+        if (!enabled) {
+          return;
+        }
+        const cap = new THREE.Mesh(
+          new THREE.CylinderGeometry(cornerRadius, cornerRadius, 0.18, 18, 1, false, thetaStart, Math.PI / 2),
+          mats.sidewalk,
+        );
+        cap.position.set(cx, 0.16, cz);
+        cap.receiveShadow = true;
+        scene.add(cap);
+      };
+
+      makeCornerCap(
+        center.x - roadHalf,
+        center.z - roadHalf,
+        0,
+        !northRoad && !westRoad,
+      );
+      makeCornerCap(
+        center.x + roadHalf,
+        center.z - roadHalf,
+        Math.PI * 1.5,
+        !northRoad && !eastRoad,
+      );
+      makeCornerCap(
+        center.x + roadHalf,
+        center.z + roadHalf,
+        Math.PI,
+        !southRoad && !eastRoad,
+      );
+      makeCornerCap(
+        center.x - roadHalf,
+        center.z + roadHalf,
+        Math.PI * 0.5,
+        !southRoad && !westRoad,
+      );
+
+      // Transition corner fills for mixed corners (one side road, one side sidewalk).
+      // Square filler patches where the clipped sidewalk edge stops at a road opening.
+      const transitionCorners = [
+        { enabled: !northRoad && westRoad, x: -roadHalf + sidewalkWidth / 2, z: -roadHalf + sidewalkWidth / 2 },
+        { enabled: !northRoad && eastRoad, x: roadHalf - sidewalkWidth / 2, z: -roadHalf + sidewalkWidth / 2 },
+        { enabled: !southRoad && westRoad, x: -roadHalf + sidewalkWidth / 2, z: roadHalf - sidewalkWidth / 2 },
+        { enabled: !southRoad && eastRoad, x: roadHalf - sidewalkWidth / 2, z: roadHalf - sidewalkWidth / 2 },
+        { enabled: !westRoad && northRoad, x: -roadHalf + sidewalkWidth / 2, z: -roadHalf + sidewalkWidth / 2 },
+        { enabled: !westRoad && southRoad, x: -roadHalf + sidewalkWidth / 2, z: roadHalf - sidewalkWidth / 2 },
+        { enabled: !eastRoad && northRoad, x: roadHalf - sidewalkWidth / 2, z: -roadHalf + sidewalkWidth / 2 },
+        { enabled: !eastRoad && southRoad, x: roadHalf - sidewalkWidth / 2, z: roadHalf - sidewalkWidth / 2 },
+      ];
+      const placedTransitions = new Set<string>();
+
+      transitionCorners.forEach((tc) => {
+        if (!tc.enabled) return;
+        const key = `${tc.x},${tc.z}`;
+        if (placedTransitions.has(key)) return;
+        placedTransitions.add(key);
+        const mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(sidewalkWidth + 0.3, 0.19, sidewalkWidth + 0.3),
+          mats.sidewalk,
+        );
+        mesh.position.set(center.x + tc.x, 0.16, center.z + tc.z);
+        mesh.receiveShadow = true;
+        scene.add(mesh);
       });
 
       const anchorOffset = tileSize / 2 - 5;
